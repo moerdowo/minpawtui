@@ -1,0 +1,46 @@
+{
+  "name": "minpawtui",
+  "version": "0.1.0",
+  "description": "A keyboard-driven, Winamp-style classic MP3 player for your terminal.",
+  "type": "module",
+  "bin": {
+    "minpawtui": "./bin/minpawtui.cjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "dev": "bun run --watch src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "keywords": [
+    "tui",
+    "mp3",
+    "audio",
+    "player",
+    "music",
+    "terminal",
+    "winamp",
+    "cli",
+    "opentui",
+    "bun"
+  ],
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "author": "rf.moerdowo",
+  "license": "MIT",
+  "dependencies": {
+    "@opentui/core": "^0.1.107",
+    "music-metadata": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "bun-types": "1.3.13",
+    "typescript": "^5.5.0"
+  }
+}
