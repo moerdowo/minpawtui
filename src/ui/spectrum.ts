@@ -1,4 +1,4 @@
-import { fg } from "@opentui/core";
+import { bg, fg } from "@opentui/core";
 import type { TextChunk } from "@opentui/core";
 import { theme } from "../theme.ts";
 
@@ -114,50 +114,58 @@ export class Spectrum {
   }
 
   /**
-   * Classic Winamp stacking-brick visualizer. Returns one TextChunk[]
-   * per row, top-down. Each bar is a column of brick cells (▆); the
-   * brick character is 3/4 height so the top 1/4 of every cell shows
-   * through as horizontal "mortar" between rows. A 1-char gap between
-   * bars provides vertical mortar. Bars fill from the bottom; a
-   * floating peak indicator marks the recent maximum and decays slowly.
+   * Classic Winamp stacking-brick visualizer with 1:1 brick aspect.
+   *
+   * Each terminal cell encodes TWO brick levels via half-block glyphs:
+   *   ▀ = upper-half lit, fg colors the top brick, bg colors the bottom
+   *   ▄ = lower-half lit, fg colors the bottom brick (top is empty)
+   *   █ = full cell (both halves lit, single fg)
+   *   ' ' = empty cell
+   * Terminal cells are roughly 1:2 (W:H), so a half-cell tall block is
+   * approximately square — each "brick piece" is 1:1.
+   *
+   * `levelColors` must have `terminalRows * 2` entries, top-down.
+   * A 1-char gap between bars gives vertical mortar; the natural cell
+   * boundary between terminal rows gives horizontal mortar.
    */
   renderBricks(
     bars: number,
-    rows: number,
-    rowColors: string[],
-    spacerColor: string,
+    terminalRows: number,
+    levelColors: string[],
+    emptyColor: string,
   ): TextChunk[][] {
     if (this._bands !== bars) this.resize(bars);
+    const totalLevels = terminalRows * 2;
     const out: TextChunk[][] = [];
-    for (let r = 0; r < rows; r++) {
+
+    for (let tr = 0; tr < terminalRows; tr++) {
+      const upperLevel = tr * 2;
+      const lowerLevel = tr * 2 + 1;
+      const upperColor =
+        levelColors[upperLevel] ?? levelColors[levelColors.length - 1] ?? "#fff";
+      const lowerColor =
+        levelColors[lowerLevel] ?? levelColors[levelColors.length - 1] ?? "#fff";
       const chunks: TextChunk[] = [];
-      const distFromBottom = rows - 1 - r;
-      const color = rowColors[r] ?? rowColors[rowColors.length - 1] ?? "#0bff5a";
+
       for (let b = 0; b < bars; b++) {
-        const level = this.levels[b]!;
-        const peak = this.peaks[b]!;
-        const barHeight = Math.max(
-          0,
-          Math.min(rows, Math.round(level * rows)),
-        );
-        const peakRow = Math.max(
-          0,
-          Math.min(rows, Math.round(peak * rows)),
-        );
-        const lit = distFromBottom < barHeight;
-        const peakLit =
-          !lit &&
-          peakRow > 0 &&
-          distFromBottom === peakRow - 1 &&
-          peak > level + 0.05;
-        if (lit) {
-          chunks.push(fg(color)(BRICK));
-        } else if (peakLit) {
-          chunks.push(fg(color)(BRICK_CAP));
+        const upper = brickStateAt(this, b, upperLevel, totalLevels);
+        const lower = brickStateAt(this, b, lowerLevel, totalLevels);
+        const upperOn = upper !== "empty";
+        const lowerOn = lower !== "empty";
+
+        if (upperOn && lowerOn) {
+          // Two coloured bricks share a cell. ▀ paints fg on top half and
+          // bg on the bottom — that's both pieces in one character.
+          chunks.push(bg(lowerColor)(fg(upperColor)("▀")));
+        } else if (upperOn) {
+          chunks.push(bg(emptyColor)(fg(upperColor)("▀")));
+        } else if (lowerOn) {
+          chunks.push(bg(emptyColor)(fg(lowerColor)("▄")));
         } else {
-          chunks.push(fg(spacerColor)(" "));
+          chunks.push(fg(emptyColor)(" "));
         }
-        if (b < bars - 1) chunks.push(fg(spacerColor)(" "));
+
+        if (b < bars - 1) chunks.push(fg(emptyColor)(" "));
       }
       out.push(chunks);
     }
@@ -165,8 +173,32 @@ export class Spectrum {
   }
 }
 
-const BRICK = "▆";
-const BRICK_CAP = "▔";
+type BrickState = "lit" | "peak" | "empty";
+
+function brickStateAt(
+  spec: Spectrum,
+  bar: number,
+  brickLevel: number,
+  totalLevels: number,
+): BrickState {
+  // We can read private fields because we're in the same module.
+  const level = (spec as any).levels[bar] as number;
+  const peak = (spec as any).peaks[bar] as number;
+  const barHeight = Math.max(
+    0,
+    Math.min(totalLevels, Math.round(level * totalLevels)),
+  );
+  const peakAt = Math.max(
+    0,
+    Math.min(totalLevels, Math.round(peak * totalLevels)),
+  );
+  const distFromBottom = totalLevels - 1 - brickLevel;
+  if (distFromBottom < barHeight) return "lit";
+  if (peakAt > 0 && distFromBottom === peakAt - 1 && peak > level + 0.05) {
+    return "peak";
+  }
+  return "empty";
+}
 
 function colorForLevel(sub: number): string {
   if (sub <= 3) return theme.lcd;

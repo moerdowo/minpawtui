@@ -11,21 +11,25 @@ import type { AppState, PlayerState } from "../types.ts";
 import { formatTime, progressBar, statusGlyph, truncate, volumeBar } from "./util.ts";
 import { Spectrum } from "./spectrum.ts";
 
-const BRICK_BARS = 10;
-const BRICK_ROWS = 4;
+const BRICK_BARS = 8;
+// Two terminal rows; each cell holds two stacked half-cell bricks via
+// ▀ / ▄ encoding, so we still get 4 brick levels but each piece is ~1:1.
+const BRICK_TERMINAL_ROWS = 2;
 // Each bar = 1 brick char + 1 char gap; last bar has no trailing gap.
 const VIZ_COL_WIDTH = BRICK_BARS * 2 - 1;
 // Plus a little left margin so it doesn't kiss the volume readout.
 const VIZ_COL_TOTAL = VIZ_COL_WIDTH + 2;
 // Below this terminal width we hide the viz entirely so the left
 // content keeps a usable amount of space.
-const MIN_INNER_WIDTH_FOR_VIZ = 60;
+const MIN_INNER_WIDTH_FOR_VIZ = 55;
 
-const ROW_COLORS = [
-  theme.red, // top
-  theme.amber, // upper-mid
-  theme.lcd, // lower-mid
-  theme.lcdDim, // bottom
+// 4 brick levels, top → bottom. Each terminal row owns two of these
+// (top half + bottom half) so the gradient survives the half-cell pack.
+const LEVEL_COLORS = [
+  theme.red, // brick 0 — top
+  theme.amber, // brick 1
+  theme.lcd, // brick 2
+  theme.lcdDim, // brick 3 — bottom
 ];
 
 export class Transport {
@@ -101,14 +105,16 @@ export class Transport {
       width: VIZ_COL_TOTAL,
       paddingLeft: 2,
       backgroundColor: theme.lcdBg,
+      // Center the two short brick rows in the panel's content area.
+      justifyContent: "center",
     });
     this.root.add(this.vizCol);
 
-    for (let r = 0; r < BRICK_ROWS; r++) {
+    for (let r = 0; r < BRICK_TERMINAL_ROWS; r++) {
       const t = new TextRenderable(renderer, {
         id: `transport-viz-row-${r}`,
         content: "",
-        fg: ROW_COLORS[r] ?? theme.lcd,
+        fg: theme.lcd,
       });
       this.vizRows.push(t);
       this.vizCol.add(t);
@@ -228,11 +234,11 @@ export class Transport {
   private renderBricks(): void {
     const rows = this.spectrum.renderBricks(
       BRICK_BARS,
-      BRICK_ROWS,
-      ROW_COLORS,
+      BRICK_TERMINAL_ROWS,
+      LEVEL_COLORS,
       theme.lcdBg,
     );
-    for (let r = 0; r < BRICK_ROWS; r++) {
+    for (let r = 0; r < BRICK_TERMINAL_ROWS; r++) {
       const row = rows[r];
       if (!row) continue;
       this.vizRows[r]!.content = new StyledText(row);

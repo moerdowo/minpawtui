@@ -10,10 +10,9 @@ playlist with a couple of keystrokes. No mouse needed.
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ╭─ NOW PLAYING ────────────────────────────────────────────────────────────────╮
 │ ♪  Aphex Twin — Avril 14th                                                   │
-│ Drukqs · 23 - aphex_twin_-_avril_14th.mp3                       ▆            │
-│ [▶]  01:23 / 02:05  ████████░░░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%      ▆ ▆ ▆     ▆  │
-│ [Space] pause  [S] stop  [[ / ] ] seek  [N]ext                  ▆ ▆ ▆ ▆ ▆ ▆ ▆│
-│                                                                 ▆ ▆ ▆ ▆ ▆ ▆ ▆│
+│ Drukqs · 23 - aphex_twin_-_avril_14th.mp3                       ▄ ▄ ▄        │
+│ [▶]  01:23 / 02:05  ████████░░░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%      ▀ ▀ ▀ ▀ ▄ ▄ ▄│
+│ [Space] pause  [S] stop  [[ / ] ] seek  [N]ext                               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ┌─ LIBRARY  (128) ─────────────────────────┐┌─ PLAYLIST  (4) ──────────────────┐
 │  Title              Artist        Time   ││ #   Title       Artist     Time  │
@@ -118,12 +117,13 @@ The whole app is keyboard-driven. Press `?` at any time for the cheatsheet.
 
 Classic Winamp **stacking-brick** spectrum analyzer, tucked into the
 right side of the `NOW PLAYING` panel next to the volume meter. Each
-bar is a column of 4 stackable bricks (`▆`); the 3/4-height brick glyph
-leaves a 1/4-cell strip of background between rows as natural mortar,
-and the 1-char gap between bars gives the wall its vertical mortar
-lines. Each row has its own color in the classic gradient — red on
-top, amber, bright LCD green, dim green at the bottom. Floating peak
-indicators (`▔`) decay slowly above each bar.
+bar is a stack of 4 square brick pieces, packed two-per-terminal-cell
+via half-block glyphs (`▀` / `▄` / `█`) and per-half fg/bg colors. A
+terminal cell is roughly 1:2 (W:H), so a half-cell-tall block is
+approximately **1:1** — each brick reads as a square. The 1-char gap
+between bars gives the wall its vertical mortar; the brick-level color
+gradient (red on top, amber, bright LCD green, dim green at the
+bottom) is preserved across both halves of every cell.
 
 Playback runs in an external `mpv` / `ffplay` / `afplay` process, so we
 don't have access to the audio output buffer for a real FFT. The bars
