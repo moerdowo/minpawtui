@@ -23,6 +23,7 @@ const HINTS: Hint[] = [
   { keys: "C", label: "Clear", priority: 3 },
   { keys: "R", label: "Repeat", priority: 3 },
   { keys: "Z", label: "Shuffle", priority: 3 },
+  { keys: "V", label: "Viz", priority: 3 },
   { keys: "M", label: "Mute", priority: 3 },
 ];
 

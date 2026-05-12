@@ -15,6 +15,7 @@ import { Transport } from "./transport.ts";
 import { ListPanel } from "./list-panel.ts";
 import { Footer } from "./footer.ts";
 import { Help } from "./help.ts";
+import { Visualizer } from "./visualizer.ts";
 
 export interface AppOptions {
   rootDir: string;
@@ -27,6 +28,7 @@ export class MinpawApp {
 
   private header!: Header;
   private transport!: Transport;
+  private visualizer!: Visualizer;
   private libraryPanel!: ListPanel;
   private playlistPanel!: ListPanel;
   private footer!: Footer;
@@ -36,6 +38,7 @@ export class MinpawApp {
   private scanText!: TextRenderable;
 
   private statusTimer: ReturnType<typeof setInterval> | null = null;
+  private vizTimer: ReturnType<typeof setInterval> | null = null;
   private rng = Math.random;
 
   constructor(opts: AppOptions) {
@@ -67,6 +70,14 @@ export class MinpawApp {
     this.statusTimer = setInterval(() => {
       this.store.clearStatusMessageIfStale();
     }, 1000);
+
+    // Visualizer animation tick (~20 fps). Independent of state changes
+    // so bars keep moving smoothly between key events.
+    this.vizTimer = setInterval(() => {
+      if (!this.visualizer.isVisible()) return;
+      this.visualizer.tick(this.store.get().player);
+      this.renderer.requestRender();
+    }, 50);
 
     await this.scanLibrary();
   }
@@ -106,6 +117,9 @@ export class MinpawApp {
 
     this.transport = new Transport(this.renderer);
     root.add(this.transport.root);
+
+    this.visualizer = new Visualizer(this.renderer);
+    root.add(this.visualizer.root);
 
     const middle = new BoxRenderable(this.renderer, {
       id: "middle",
@@ -417,6 +431,14 @@ export class MinpawApp {
       return;
     }
 
+    // Visualizer toggle
+    if (key.name === "v") {
+      const next = !this.visualizer.isVisible();
+      this.visualizer.setVisible(next);
+      this.store.setStatusMessage(`Visualizer: ${next ? "on" : "off"}`);
+      return;
+    }
+
     // Repeat/shuffle
     if (key.name === "r") {
       const mode = this.store.cycleRepeat();
@@ -533,6 +555,7 @@ export class MinpawApp {
   async quit(): Promise<void> {
     try {
       if (this.statusTimer) clearInterval(this.statusTimer);
+      if (this.vizTimer) clearInterval(this.vizTimer);
       await this.player.destroy();
     } catch {
       /* ignore */

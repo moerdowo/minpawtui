@@ -14,6 +14,11 @@ playlist with a couple of keystrokes. No mouse needed.
 │ [▶]  01:23 / 02:05  ███████████░░░░░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%  ---- RPT*  │
 │ [Space] pause  [S] stop  [[ / ] ] seek  [N]ext                               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+┌─ SPECTRUM ───────────────────────────────────────────────────────────────────┐
+│  ▔   ▔        ▔ ▔            ▁ ▂ ▂                                          │
+│  █ ▆ ▄ ▆ █ █ █ ▇ ▅ ▁ ▔   ▃ ▇ █ █ █ █ ▅ ▅ ▄ ▄ ▄ ▅ ▅ ▅ ▂ ▁                  │
+│  █ █ █ █ █ █ █ █ █ █ █ ▆ ▅ ▅ ▆ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ ▆ ▄ ▆ ▆ ▆ █│
+└──────────────────────────────────────────────────────────────────────────────┘
 ┌─ LIBRARY  (128) ─────────────────────────┐┌─ PLAYLIST  (4) ──────────────────┐
 │  Title              Artist        Time   ││ #   Title       Artist     Time  │
 │  Avril 14th         Aphex Twin   02:05   ││ 1.  Strobe      Deadmau5  10:32  │
@@ -83,6 +88,7 @@ The whole app is keyboard-driven. Press `?` at any time for the cheatsheet.
 | `M`             | Mute toggle                                  |
 | `R`             | Cycle repeat (off → all → one)               |
 | `Z`             | Toggle shuffle                               |
+| `V`             | Toggle spectrum visualizer                   |
 
 ### Library & Playlist
 
@@ -111,6 +117,21 @@ The whole app is keyboard-driven. Press `?` at any time for the cheatsheet.
 `mp3`, `m4a`, `m4b`, `aac`, `flac`, `ogg`, `oga`, `opus`, `wav`, `wma`,
 `aiff`, `aif`. Whatever your backend can decode plays; whatever
 `music-metadata` recognises gets proper tags.
+
+## Visualizer
+
+The `SPECTRUM` panel is the classic Winamp bar visualizer — top-to-bottom
+red → amber → green gradient, sub-cell vertical resolution via Unicode block
+characters (`▁▂▃▄▅▆▇█`), and falling peak caps (`▔`) that decay slowly above
+each bar.
+
+Since playback runs in an external process (mpv/ffplay/afplay), we don't have
+direct access to the audio output buffer. The bars are driven by a synthetic
+signal — per-band oscillators with different periods, plus envelope, noise,
+and occasional "beat" spikes biased toward bass bands. The motion is tied to
+the player's `playing` state: when you pause or stop, bars decay to silence.
+
+Toggle it with `V` if you want the screen real estate back for the lists.
 
 ## How it works
 
