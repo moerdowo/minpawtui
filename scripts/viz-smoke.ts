@@ -1,42 +1,30 @@
 #!/usr/bin/env bun
-// Verify the visualizer renders non-empty bars when playing.
-import { createCliRenderer } from "@opentui/core";
-import { Visualizer } from "../src/ui/visualizer.ts";
-import type { PlayerState } from "../src/types.ts";
+// Verify the inline Spectrum produces non-empty bars when playing,
+// and decays to silence when stopped.
+import { Spectrum } from "../src/ui/spectrum.ts";
+import { writeFileSync } from "node:fs";
 
-const renderer = await createCliRenderer({
-  testing: true,
-  targetFps: 30,
-  exitOnCtrlC: false,
-});
+const WIDTH = 18;
+const spec = new Spectrum(WIDTH);
 
-const viz = new Visualizer(renderer);
-renderer.root.add(viz.root);
+// 1 second of playing-state ticks
+for (let i = 0; i < 60; i++) spec.tick(1 / 60, true);
+const playingChunks = spec.renderInline(WIDTH);
+const playingText = playingChunks.map((c: any) => c.text ?? "").join("");
+const playingColors = playingChunks.map((c: any) => c?.fg ?? c?.style?.fg ?? "?");
 
-const playing: PlayerState = {
-  status: "playing",
-  currentTrack: null,
-  positionSec: 0,
-  durationSec: 100,
-  volume: 80,
-  muted: false,
-  repeat: "off",
-  shuffle: false,
-};
+// 1 second of stopped-state decay
+for (let i = 0; i < 60; i++) spec.tick(1 / 60, false);
+const stoppedChunks = spec.renderInline(WIDTH);
+const stoppedText = stoppedChunks.map((c: any) => c.text ?? "").join("");
 
-// Tick the visualizer many times to let bars build up.
-for (let i = 0; i < 60; i++) {
-  viz.tick(playing);
-  await new Promise((r) => setTimeout(r, 16));
-}
+const out = [
+  `inline width: ${WIDTH}`,
+  `playing bars : [${playingText}]`,
+  `playing colors: ${JSON.stringify(playingColors)}`,
+  `stopped bars : [${stoppedText}]`,
+  ``,
+].join("\n");
 
-const rows = (viz.root as any).getChildren().map((c: any) => {
-  // TextRenderable.content is a StyledText (chunks array).
-  const ch = c.chunks ?? [];
-  return ch.map((k: any) => k.text ?? "").join("");
-});
-const out = rows.map((r: string, i: number) => `row ${i}: [${r}]`).join("\n");
-require("fs").writeFileSync("/tmp/viz-smoke.out", out + "\n");
-
-renderer.destroy?.();
-process.exit(0);
+writeFileSync("/tmp/viz-smoke.out", out);
+process.stdout.write(out);

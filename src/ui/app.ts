@@ -15,7 +15,6 @@ import { Transport } from "./transport.ts";
 import { ListPanel } from "./list-panel.ts";
 import { Footer } from "./footer.ts";
 import { Help } from "./help.ts";
-import { Visualizer } from "./visualizer.ts";
 
 export interface AppOptions {
   rootDir: string;
@@ -28,7 +27,6 @@ export class MinpawApp {
 
   private header!: Header;
   private transport!: Transport;
-  private visualizer!: Visualizer;
   private libraryPanel!: ListPanel;
   private playlistPanel!: ListPanel;
   private footer!: Footer;
@@ -39,6 +37,7 @@ export class MinpawApp {
 
   private statusTimer: ReturnType<typeof setInterval> | null = null;
   private vizTimer: ReturnType<typeof setInterval> | null = null;
+  private lastVizTick = Date.now();
   private rng = Math.random;
 
   constructor(opts: AppOptions) {
@@ -71,12 +70,17 @@ export class MinpawApp {
       this.store.clearStatusMessageIfStale();
     }, 1000);
 
-    // Visualizer animation tick (~20 fps). Independent of state changes
-    // so bars keep moving smoothly between key events.
+    // Inline spectrum tick (~20 fps). Independent of store changes so
+    // the bars keep moving smoothly between key events.
+    this.lastVizTick = Date.now();
     this.vizTimer = setInterval(() => {
-      if (!this.visualizer.isVisible()) return;
-      this.visualizer.tick(this.store.get().player);
-      this.renderer.requestRender();
+      const now = Date.now();
+      const dt = Math.min(0.1, (now - this.lastVizTick) / 1000);
+      this.lastVizTick = now;
+      const player = this.store.get().player;
+      // Always advance the simulation so peaks decay even when disabled.
+      this.transport.tickViz(player, dt);
+      if (this.transport.isVizEnabled()) this.renderer.requestRender();
     }, 50);
 
     await this.scanLibrary();
@@ -117,9 +121,6 @@ export class MinpawApp {
 
     this.transport = new Transport(this.renderer);
     root.add(this.transport.root);
-
-    this.visualizer = new Visualizer(this.renderer);
-    root.add(this.visualizer.root);
 
     const middle = new BoxRenderable(this.renderer, {
       id: "middle",
@@ -431,10 +432,10 @@ export class MinpawApp {
       return;
     }
 
-    // Visualizer toggle
+    // Visualizer toggle (inline mini-spectrum, right of the volume)
     if (key.name === "v") {
-      const next = !this.visualizer.isVisible();
-      this.visualizer.setVisible(next);
+      const next = !this.transport.isVizEnabled();
+      this.transport.setVizEnabled(next);
       this.store.setStatusMessage(`Visualizer: ${next ? "on" : "off"}`);
       return;
     }

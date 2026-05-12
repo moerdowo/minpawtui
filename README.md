@@ -11,14 +11,9 @@ playlist with a couple of keystrokes. No mouse needed.
 ╭─ NOW PLAYING ────────────────────────────────────────────────────────────────╮
 │ ♪  Aphex Twin — Avril 14th                                                   │
 │ Drukqs · 23 - aphex_twin_-_avril_14th.mp3                                    │
-│ [▶]  01:23 / 02:05  ███████████░░░░░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%  ---- RPT*  │
+│ [▶]  01:23 / 02:05  ████████░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%   ▆▇▃▅▂▆▇▄▂▃▄▅▂▁▂▃▅▆│
 │ [Space] pause  [S] stop  [[ / ] ] seek  [N]ext                               │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-┌─ SPECTRUM ───────────────────────────────────────────────────────────────────┐
-│  ▔   ▔        ▔ ▔            ▁ ▂ ▂                                          │
-│  █ ▆ ▄ ▆ █ █ █ ▇ ▅ ▁ ▔   ▃ ▇ █ █ █ █ ▅ ▅ ▄ ▄ ▄ ▅ ▅ ▅ ▂ ▁                  │
-│  █ █ █ █ █ █ █ █ █ █ █ ▆ ▅ ▅ ▆ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ ▆ ▄ ▆ ▆ ▆ █│
-└──────────────────────────────────────────────────────────────────────────────┘
 ┌─ LIBRARY  (128) ─────────────────────────┐┌─ PLAYLIST  (4) ──────────────────┐
 │  Title              Artist        Time   ││ #   Title       Artist     Time  │
 │  Avril 14th         Aphex Twin   02:05   ││ 1.  Strobe      Deadmau5  10:32  │
@@ -120,18 +115,20 @@ The whole app is keyboard-driven. Press `?` at any time for the cheatsheet.
 
 ## Visualizer
 
-The `SPECTRUM` panel is the classic Winamp bar visualizer — top-to-bottom
-red → amber → green gradient, sub-cell vertical resolution via Unicode block
-characters (`▁▂▃▄▅▆▇█`), and falling peak caps (`▔`) that decay slowly above
-each bar.
+A compact inline spectrum lives on the **right of the volume meter** inside
+the `NOW PLAYING` panel. Each character is one bar, vertical resolution
+comes from 1/8 sub-block glyphs (`▁▂▃▄▅▆▇█`), and color tracks each bar's
+level — green at the bottom, amber in the middle, red at the top — for the
+classic Winamp gradient even in a single row.
 
-Since playback runs in an external process (mpv/ffplay/afplay), we don't have
-direct access to the audio output buffer. The bars are driven by a synthetic
-signal — per-band oscillators with different periods, plus envelope, noise,
-and occasional "beat" spikes biased toward bass bands. The motion is tied to
-the player's `playing` state: when you pause or stop, bars decay to silence.
+Playback runs in an external `mpv` / `ffplay` / `afplay` process, so we
+don't have access to the audio output buffer for a real FFT. The bars are
+driven by a synthetic signal — per-band oscillators with different
+periods, envelope, noise, and occasional "beat" spikes biased toward
+bass bands. Tied to the player state: when you pause or stop, bars decay
+to silence.
 
-Toggle it with `V` if you want the screen real estate back for the lists.
+Toggle with `V` if you want more room for the volume display.
 
 ## How it works
 
