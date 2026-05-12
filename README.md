@@ -10,9 +10,10 @@ playlist with a couple of keystrokes. No mouse needed.
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ╭─ NOW PLAYING ────────────────────────────────────────────────────────────────╮
 │ ♪  Aphex Twin — Avril 14th                                                   │
-│ Drukqs · 23 - aphex_twin_-_avril_14th.mp3                                    │
-│ [▶]  01:23 / 02:05  ████████░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%   ▆▇▃▅▂▆▇▄▂▃▄▅▂▁▂▃▅▆│
-│ [Space] pause  [S] stop  [[ / ] ] seek  [N]ext                               │
+│ Drukqs · 23 - aphex_twin_-_avril_14th.mp3                       ▆            │
+│ [▶]  01:23 / 02:05  ████████░░░░░░░░  VOL ▮▮▮▮▮▮▮▮▯▯  80%      ▆ ▆ ▆     ▆  │
+│ [Space] pause  [S] stop  [[ / ] ] seek  [N]ext                  ▆ ▆ ▆ ▆ ▆ ▆ ▆│
+│                                                                 ▆ ▆ ▆ ▆ ▆ ▆ ▆│
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ┌─ LIBRARY  (128) ─────────────────────────┐┌─ PLAYLIST  (4) ──────────────────┐
 │  Title              Artist        Time   ││ #   Title       Artist     Time  │
@@ -115,20 +116,24 @@ The whole app is keyboard-driven. Press `?` at any time for the cheatsheet.
 
 ## Visualizer
 
-A compact inline spectrum lives on the **right of the volume meter** inside
-the `NOW PLAYING` panel. Each character is one bar, vertical resolution
-comes from 1/8 sub-block glyphs (`▁▂▃▄▅▆▇█`), and color tracks each bar's
-level — green at the bottom, amber in the middle, red at the top — for the
-classic Winamp gradient even in a single row.
+Classic Winamp **stacking-brick** spectrum analyzer, tucked into the
+right side of the `NOW PLAYING` panel next to the volume meter. Each
+bar is a column of 4 stackable bricks (`▆`); the 3/4-height brick glyph
+leaves a 1/4-cell strip of background between rows as natural mortar,
+and the 1-char gap between bars gives the wall its vertical mortar
+lines. Each row has its own color in the classic gradient — red on
+top, amber, bright LCD green, dim green at the bottom. Floating peak
+indicators (`▔`) decay slowly above each bar.
 
 Playback runs in an external `mpv` / `ffplay` / `afplay` process, so we
-don't have access to the audio output buffer for a real FFT. The bars are
-driven by a synthetic signal — per-band oscillators with different
+don't have access to the audio output buffer for a real FFT. The bars
+are driven by a synthetic signal — per-band oscillators with different
 periods, envelope, noise, and occasional "beat" spikes biased toward
-bass bands. Tied to the player state: when you pause or stop, bars decay
-to silence.
+bass bands. Tied to the player state: when you pause or stop, bars
+decay to silence.
 
-Toggle with `V` if you want more room for the volume display.
+Toggle with `V`. On narrow terminals (inner width under 60 columns) the
+brick column auto-collapses so the volume meter has room to breathe.
 
 ## How it works
 

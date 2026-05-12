@@ -112,7 +112,61 @@ export class Spectrum {
     }
     return chunks;
   }
+
+  /**
+   * Classic Winamp stacking-brick visualizer. Returns one TextChunk[]
+   * per row, top-down. Each bar is a column of brick cells (▆); the
+   * brick character is 3/4 height so the top 1/4 of every cell shows
+   * through as horizontal "mortar" between rows. A 1-char gap between
+   * bars provides vertical mortar. Bars fill from the bottom; a
+   * floating peak indicator marks the recent maximum and decays slowly.
+   */
+  renderBricks(
+    bars: number,
+    rows: number,
+    rowColors: string[],
+    spacerColor: string,
+  ): TextChunk[][] {
+    if (this._bands !== bars) this.resize(bars);
+    const out: TextChunk[][] = [];
+    for (let r = 0; r < rows; r++) {
+      const chunks: TextChunk[] = [];
+      const distFromBottom = rows - 1 - r;
+      const color = rowColors[r] ?? rowColors[rowColors.length - 1] ?? "#0bff5a";
+      for (let b = 0; b < bars; b++) {
+        const level = this.levels[b]!;
+        const peak = this.peaks[b]!;
+        const barHeight = Math.max(
+          0,
+          Math.min(rows, Math.round(level * rows)),
+        );
+        const peakRow = Math.max(
+          0,
+          Math.min(rows, Math.round(peak * rows)),
+        );
+        const lit = distFromBottom < barHeight;
+        const peakLit =
+          !lit &&
+          peakRow > 0 &&
+          distFromBottom === peakRow - 1 &&
+          peak > level + 0.05;
+        if (lit) {
+          chunks.push(fg(color)(BRICK));
+        } else if (peakLit) {
+          chunks.push(fg(color)(BRICK_CAP));
+        } else {
+          chunks.push(fg(spacerColor)(" "));
+        }
+        if (b < bars - 1) chunks.push(fg(spacerColor)(" "));
+      }
+      out.push(chunks);
+    }
+    return out;
+  }
 }
+
+const BRICK = "▆";
+const BRICK_CAP = "▔";
 
 function colorForLevel(sub: number): string {
   if (sub <= 3) return theme.lcd;

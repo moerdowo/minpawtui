@@ -17,7 +17,7 @@ const SECTIONS: Array<{ heading: string; items: Array<[string, string]> }> = [
       ["M", "Toggle mute"],
       ["R", "Cycle repeat (off → all → one)"],
       ["Z", "Toggle shuffle"],
-      ["V", "Toggle inline spectrum (right of volume)"],
+      ["V", "Toggle brick spectrum (right of volume)"],
     ],
   },
   {
