@@ -39,6 +39,7 @@ export class MinpawApp {
   private vizTimer: ReturnType<typeof setInterval> | null = null;
   private lastVizTick = Date.now();
   private rng = Math.random;
+  private quitting = false;
 
   constructor(opts: AppOptions) {
     this.store = new Store(opts.rootDir);
@@ -46,10 +47,23 @@ export class MinpawApp {
 
   async start(): Promise<void> {
     this.renderer = await createCliRenderer({
-      exitOnCtrlC: true,
+      // We handle Ctrl+C ourselves so the terminal is fully restored on exit.
+      exitOnCtrlC: false,
+      // Keyboard-only app — don't enable mouse tracking. Leaving it on caused
+      // mouse-report escape sequences to leak into the shell after exit.
+      useMouse: false,
       targetFps: 30,
       backgroundColor: theme.bg,
     });
+
+    // Restore the terminal on any exit path (Ctrl+C as signal, SIGTERM,
+    // uncaught error) — not just the in-app quit key.
+    const onSignal = () => {
+      void this.quit();
+    };
+    process.once("SIGINT", onSignal);
+    process.once("SIGTERM", onSignal);
+    process.once("SIGHUP", onSignal);
 
     this.player = createPlayer();
     this.wirePlayerEvents();
@@ -562,6 +576,8 @@ export class MinpawApp {
   /* -------------------------------------------------------- */
 
   async quit(): Promise<void> {
+    if (this.quitting) return;
+    this.quitting = true;
     try {
       if (this.statusTimer) clearInterval(this.statusTimer);
       if (this.vizTimer) clearInterval(this.vizTimer);
@@ -570,7 +586,9 @@ export class MinpawApp {
       /* ignore */
     }
     try {
-      this.renderer.stop();
+      // destroy() (not stop()) restores the terminal: disables mouse
+      // tracking, leaves the alternate screen, and resets the cursor.
+      this.renderer.destroy();
     } catch {
       /* ignore */
     }
