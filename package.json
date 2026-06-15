@@ -1,6 +1,6 @@
 {
   "name": "minpawtui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A keyboard-driven, Winamp-style classic MP3 player for your terminal.",
   "type": "module",
   "bin": {
