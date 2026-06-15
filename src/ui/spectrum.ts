@@ -57,13 +57,29 @@ export class Spectrum {
     }
   }
 
-  tick(dt: number, playing: boolean): void {
+  /**
+   * Advance the visualizer. When `realBands` is supplied (a real FFT of the
+   * audio, length === band count), the bars follow it directly. Otherwise the
+   * synthetic oscillator model drives them. Either way `playing === false`
+   * decays everything to silence.
+   */
+  tick(dt: number, playing: boolean, realBands?: number[] | null): void {
     if (!playing) {
       for (let i = 0; i < this._bands; i++) {
         this.levels[i]! *= 0.82;
         this.peaks[i] = Math.max(this.levels[i]!, this.peaks[i]! - dt * 0.6);
         if (this.levels[i]! < 0.001) this.levels[i] = 0;
         if (this.peaks[i]! < 0.001) this.peaks[i] = 0;
+      }
+      return;
+    }
+
+    if (realBands && realBands.length === this._bands) {
+      for (let i = 0; i < this._bands; i++) {
+        this.levels[i] = clamp01(realBands[i]!);
+        const pk = this.peaks[i]!;
+        if (this.levels[i]! > pk) this.peaks[i] = this.levels[i]!;
+        else this.peaks[i] = Math.max(this.levels[i]!, pk - dt * 0.35);
       }
       return;
     }

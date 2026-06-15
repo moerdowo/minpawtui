@@ -35,6 +35,8 @@ const LEVEL_COLORS = [
 export class Transport {
   readonly root: BoxRenderable;
   readonly spectrum = new Spectrum(BRICK_BARS);
+  /** Number of frequency bands the brick visualizer expects. */
+  readonly spectrumBands = BRICK_BARS;
 
   private leftCol: BoxRenderable;
   private vizCol: BoxRenderable;
@@ -137,11 +139,12 @@ export class Transport {
   }
 
   /**
-   * Advance the visualizer simulation and refresh the brick rows.
-   * Called by the app's render-tick timer at ~20 fps.
+   * Advance the visualizer and refresh the brick rows. Called by the app's
+   * render-tick timer at ~20 fps. `realBands` (a live FFT of the audio) drives
+   * the bars when available; otherwise the synthetic model is used.
    */
-  tickViz(player: PlayerState, dt: number): void {
-    this.spectrum.tick(dt, player.status === "playing");
+  tickViz(player: PlayerState, dt: number, realBands?: number[] | null): void {
+    this.spectrum.tick(dt, player.status === "playing", realBands);
     if (this.shouldShowViz()) this.renderBricks();
   }
 

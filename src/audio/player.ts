@@ -7,7 +7,9 @@ import { join } from "node:path";
 import { execSync } from "node:child_process";
 import type { Track } from "../types.ts";
 
-export type PlayerBackend = "mpv" | "ffplay" | "afplay" | "none";
+import { FfmpegTapPlayer } from "./ffmpeg-player.ts";
+
+export type PlayerBackend = "ffmpeg-tap" | "mpv" | "ffplay" | "afplay" | "none";
 
 export interface PlayerEvents {
   ended: () => void;
@@ -37,6 +39,12 @@ export interface Player {
   destroy(): Promise<void>;
   on<E extends keyof PlayerEvents>(event: E, listener: PlayerEvents[E]): void;
   off<E extends keyof PlayerEvents>(event: E, listener: PlayerEvents[E]): void;
+  /**
+   * Real spectrum magnitudes in [0,1] from an in-process FFT of the audio
+   * being played, or null if this backend cannot tap the signal (in which
+   * case the UI falls back to a synthetic visualizer).
+   */
+  getBands?(count: number): number[] | null;
 }
 
 function which(cmd: string): string | null {
@@ -51,6 +59,9 @@ function which(cmd: string): string | null {
 }
 
 export function detectBackend(): PlayerBackend {
+  // Prefer the in-process ffmpeg tap: it decodes through our process so the
+  // visualizer is a real FFT of the audio, and it gives precise pause/seek.
+  if (which("ffmpeg") && which("ffplay")) return "ffmpeg-tap";
   if (which("mpv")) return "mpv";
   if (which("ffplay")) return "ffplay";
   if (which("afplay")) return "afplay";
@@ -60,6 +71,8 @@ export function detectBackend(): PlayerBackend {
 export function createPlayer(preferred?: PlayerBackend): Player {
   const backend = preferred && preferred !== "none" ? preferred : detectBackend();
   switch (backend) {
+    case "ffmpeg-tap":
+      return new FfmpegTapPlayer();
     case "mpv":
       return new MpvPlayer();
     case "ffplay":
@@ -68,7 +81,7 @@ export function createPlayer(preferred?: PlayerBackend): Player {
       return new SpawnPlayer("afplay");
     default:
       throw new Error(
-        "No audio backend found. Install one of: mpv (recommended), ffmpeg (provides ffplay), or run on macOS (afplay built-in).",
+        "No audio backend found. Install one of: ffmpeg + ffplay (recommended — real spectrum visualizer), mpv, or run on macOS (afplay built-in).",
       );
   }
 }

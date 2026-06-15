@@ -78,8 +78,14 @@ export class MinpawApp {
       const dt = Math.min(0.1, (now - this.lastVizTick) / 1000);
       this.lastVizTick = now;
       const player = this.store.get().player;
-      // Always advance the simulation so peaks decay even when disabled.
-      this.transport.tickViz(player, dt);
+      // Pull a real FFT of the audio if the backend can tap it (ffmpeg-tap);
+      // otherwise getBands is undefined/null and the synthetic model runs.
+      const bands =
+        player.status === "playing" && this.player.getBands
+          ? this.player.getBands(this.transport.spectrumBands)
+          : null;
+      // Always advance so peaks decay even when the viz is hidden.
+      this.transport.tickViz(player, dt, bands);
       if (this.transport.isVizEnabled()) this.renderer.requestRender();
     }, 50);
 
@@ -227,13 +233,15 @@ export class MinpawApp {
       this.store.setLibrary(tracks);
       const backend = this.player.backend;
       const backendNote =
-        backend === "mpv"
-          ? "mpv backend (full control)"
-          : backend === "ffplay"
-            ? "ffplay backend — seek/pause restart the stream"
-            : backend === "afplay"
-              ? "afplay backend — no seek/pause control"
-              : "no backend";
+        backend === "ffmpeg-tap"
+          ? "ffmpeg backend · real-time FFT visualizer"
+          : backend === "mpv"
+            ? "mpv backend (full control)"
+            : backend === "ffplay"
+              ? "ffplay backend — seek/pause restart the stream"
+              : backend === "afplay"
+                ? "afplay backend — no seek/pause control"
+                : "no backend";
       this.store.setStatusMessage(
         tracks.length > 0
           ? `Indexed ${tracks.length} tracks · ${backendNote}`

@@ -42,16 +42,20 @@ bun install -g minpawtui
 npm install -g minpawtui
 ```
 
-You also need at least one of these audio backends on your `PATH`:
+You also need an audio backend on your `PATH`:
 
-| Backend  | Pause / Seek | Install                              |
-|----------|--------------|--------------------------------------|
-| **mpv**  | ✅ full       | `brew install mpv` · `apt install mpv` |
-| ffplay   | ⚠️ restart    | `brew install ffmpeg`                |
-| afplay   | ❌ basic      | built into macOS                     |
+| Backend          | Visualizer        | Pause / Seek | Install                              |
+|------------------|-------------------|--------------|--------------------------------------|
+| **ffmpeg + ffplay** | 🟢 **real FFT** | ✅ precise     | `brew install ffmpeg` · `apt install ffmpeg` |
+| mpv              | synthetic         | ✅ full        | `brew install mpv` · `apt install mpv` |
+| ffplay only      | synthetic         | ⚠️ restart    | `brew install ffmpeg`                |
+| afplay           | synthetic         | ❌ basic      | built into macOS                     |
 
-`minpawtui` auto-detects in this order. Install `mpv` for the best experience —
-it controls playback over an IPC socket so pause/seek/volume are instant.
+`minpawtui` auto-detects in this order. **Install `ffmpeg` for the full
+experience** — it decodes audio *through* minpawtui, so the spectrum
+visualizer is a real-time FFT of what you're hearing (not a simulation),
+and pause/seek/volume are sample-accurate. The other backends still play
+fine but drive the visualizer with a synthetic model.
 
 ## Run
 
@@ -125,14 +129,26 @@ between bars gives the wall its vertical mortar; the brick-level color
 gradient (red on top, amber, bright LCD green, dim green at the
 bottom) is preserved across both halves of every cell.
 
-Playback runs in an external `mpv` / `ffplay` / `afplay` process, so we
-don't have access to the audio output buffer for a real FFT. The bars
-are driven by a synthetic signal — per-band oscillators with different
-periods, envelope, noise, and occasional "beat" spikes biased toward
-bass bands. Tied to the player state: when you pause or stop, bars
-decay to silence.
+### Real FFT, not eye-candy
 
-Toggle with `V`. On narrow terminals (inner width under 60 columns) the
+With the **ffmpeg backend** the bricks are a genuine real-time spectrum.
+ffmpeg decodes the track to raw PCM, minpawtui meters that PCM to the
+ffplay "DAC" at exactly real-time rate, and **taps every sample on the
+way through** into a ring buffer. The UI runs a 2048-point Hann-windowed
+[radix-2 FFT](src/audio/analyzer.ts) over that buffer ~20×/sec, buckets
+the power spectrum into log-spaced frequency bands (40 Hz–16 kHz), and
+feeds those magnitudes straight to the bricks. Low notes light the left
+bars, highs light the right — because it's measuring the actual signal.
+
+The tap sits *before* the volume scaling, so turning the volume down
+doesn't shrink the visualizer — exactly like a hardware analyzer.
+
+On the fallback backends (mpv / ffplay-only / afplay) the audio never
+passes through our process, so there's nothing to analyze; the bars use
+a synthetic model instead (per-band oscillators + envelope + noise +
+bass-biased beat spikes). Either way, pause/stop decays them to silence.
+
+Toggle with `V`. On narrow terminals (inner width under 55 columns) the
 brick column auto-collapses so the volume meter has room to breathe.
 
 ## How it works
@@ -147,19 +163,24 @@ brick column auto-collapses so the volume meter has room to breathe.
 └────────┬─────────┘   │  (music-metadata)│
          │             └──────────────────┘
 ┌────────▼─────────┐
-│  Player          │   ── mpv  (JSON IPC over Unix socket)
-│  abstraction     │   ── ffplay / afplay  (process restart on seek)
+│  Player          │   ── ffmpeg-tap : ffmpeg ─PCM→ [tap → FFT] ─→ ffplay
+│  abstraction     │   ── mpv        : JSON IPC over Unix socket
+│                  │   ── ffplay/afplay : process restart on seek
 └──────────────────┘
 ```
 
 - **State store** is a tiny `EventEmitter` — every change re-renders.
-- **Player** is an interface with two implementations:
+- **Player** is an interface with three implementations:
+  - `FfmpegTapPlayer` (preferred) spawns `ffmpeg` to decode the track to
+    raw f32 PCM and meters it to `ffplay` at real-time rate. Because *we*
+    are the clock, position is `bytesOut / byteRate`, pause is `SIGSTOP`
+    on both processes, and seek re-spawns ffmpeg with `-ss`. Every metered
+    chunk is tapped into the [`Analyzer`](src/audio/analyzer.ts) for the
+    real-time FFT spectrum.
   - `MpvPlayer` spawns `mpv --idle --input-ipc-server=…` and talks JSON
-    commands over the socket. It observes `time-pos`, `duration`, and
-    `pause` so the UI follows playback in real time.
+    commands over the socket, observing `time-pos` / `duration` / `pause`.
   - `SpawnPlayer` spawns `ffplay` / `afplay` per track and approximates
-    pause/seek by killing and re-spawning with `-ss <offset>`. Position is
-    tracked client-side from `Date.now()`.
+    pause/seek by killing and re-spawning with `-ss <offset>`.
 
 ## Development
 

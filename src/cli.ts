@@ -33,10 +33,11 @@ KEYS
   ? F1         help                        Q       quit
 
 BACKENDS
-  Playback uses mpv (preferred), ffplay, or afplay — whichever is on PATH.
-  Install mpv (recommended) for full pause/seek/volume support:
-    brew install mpv       # macOS
-    sudo apt install mpv   # Debian / Ubuntu
+  Preferred: ffmpeg + ffplay — decodes in-process so the visualizer is a
+  REAL FFT of the audio (plus precise pause/seek). Falls back to mpv, then
+  ffplay, then afplay (those use a synthetic visualizer).
+    brew install ffmpeg       # macOS
+    sudo apt install ffmpeg   # Debian / Ubuntu  (provides ffmpeg + ffplay)
 `;
 
 function parseArgs(argv: string[]): ParsedArgs {
@@ -85,12 +86,12 @@ async function main(): Promise<void> {
   if (backend === "none") {
     process.stderr.write(
       "error: no audio backend found on PATH.\n\n" +
-        "Install one of:\n" +
-        "  mpv      — recommended (full pause/seek control)\n" +
-        "             brew install mpv  |  sudo apt install mpv\n" +
-        "  ffplay   — basic playback (part of ffmpeg)\n" +
-        "             brew install ffmpeg  |  sudo apt install ffmpeg\n" +
-        "  afplay   — built into macOS (basic playback)\n",
+        "Recommended (real FFT visualizer + precise pause/seek):\n" +
+        "  ffmpeg + ffplay\n" +
+        "             brew install ffmpeg  |  sudo apt install ffmpeg\n\n" +
+        "Fallbacks (synthetic visualizer):\n" +
+        "  mpv        brew install mpv  |  sudo apt install mpv\n" +
+        "  afplay     built into macOS\n",
     );
     process.exit(1);
   }
