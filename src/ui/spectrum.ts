@@ -1,29 +1,23 @@
-import { bg, fg } from "@opentui/core";
+import { fg } from "@opentui/core";
 import type { TextChunk } from "@opentui/core";
-import { theme } from "../theme.ts";
 
 /**
- * Classic Winamp-style spectrum simulator.
+ * Winamp-style spectrum, rendered as a fine Braille dot-matrix.
  *
- * Playback runs in an external mpv/ffplay/afplay process, so we don't
- * have access to the audio output buffer for a real FFT. Bars are driven
- * by a synthetic signal — per-band oscillators with different periods
- * plus envelope, noise, and occasional "beat" spikes on bass bands.
- *
- * `renderInline()` returns colored TextChunks for a single-row, packed
- * bar display using 1/8 sub-block characters for vertical resolution.
+ * Each terminal cell is a 2×4 Braille dot grid, so a single dot is ~1/8 of a
+ * character — the smallest "pixel" a terminal can draw. `renderBraille()`
+ * packs the bars into that grid; the bar levels come from a real FFT
+ * (Analyzer) when the backend can tap the audio, or a synthetic model
+ * otherwise.
  */
 
-const SUB_BLOCKS: readonly string[] = [
-  " ",
-  "▁",
-  "▂",
-  "▃",
-  "▄",
-  "▅",
-  "▆",
-  "▇",
-  "█",
+// Braille dot bit per (subRow 0..3, subCol 0..1). U+2800 + bitmask = glyph.
+const BRAILLE_BASE = 0x2800;
+const BRAILLE_BITS: readonly (readonly number[])[] = [
+  [0x01, 0x08],
+  [0x02, 0x10],
+  [0x04, 0x20],
+  [0x40, 0x80],
 ];
 
 export class Spectrum {
@@ -113,75 +107,48 @@ export class Spectrum {
   }
 
   /**
-   * Returns colored chunks for a single-row inline visualizer of the
-   * given width. Each character represents one bar; its color reflects
-   * the bar's instantaneous level (green→amber→red) for a classic
-   * Winamp gradient even in 1-row mode.
-   */
-  renderInline(width: number): TextChunk[] {
-    if (this._bands !== width) this.resize(width);
-    const chunks: TextChunk[] = [];
-    for (let b = 0; b < width; b++) {
-      const sub = clamp(Math.round(this.levels[b]! * 8), 0, 8);
-      const ch = SUB_BLOCKS[sub]!;
-      chunks.push(fg(colorForLevel(sub))(ch));
-    }
-    return chunks;
-  }
-
-  /**
-   * Classic Winamp stacking-brick visualizer with 1:1 brick aspect.
+   * Render the spectrum as a fine Braille dot-matrix.
    *
-   * Each terminal cell encodes TWO brick levels via half-block glyphs:
-   *   ▀ = upper-half lit, fg colors the top brick, bg colors the bottom
-   *   ▄ = lower-half lit, fg colors the bottom brick (top is empty)
-   *   █ = full cell (both halves lit, single fg)
-   *   ' ' = empty cell
-   * Terminal cells are roughly 1:2 (W:H), so a half-cell tall block is
-   * approximately square — each "brick piece" is 1:1.
+   * The display is `cellW × cellH` terminal cells, i.e. a (2·cellW)×(4·cellH)
+   * grid of dots. There is one bar per dot-column (so `bandCount` must be
+   * 2·cellW); each bar fills dots from the bottom up, with a slowly-falling
+   * peak dot. `rowColors[cy]` colors cell-row `cy` (top → bottom gradient).
    *
-   * `levelColors` must have `terminalRows * 2` entries, top-down.
-   * A 1-char gap between bars gives vertical mortar; the natural cell
-   * boundary between terminal rows gives horizontal mortar.
+   * Returns one `TextChunk[]` per cell-row, top-down.
    */
-  renderBricks(
-    bars: number,
-    terminalRows: number,
-    levelColors: string[],
+  renderBraille(
+    cellW: number,
+    cellH: number,
+    rowColors: string[],
     emptyColor: string,
   ): TextChunk[][] {
-    if (this._bands !== bars) this.resize(bars);
-    const totalLevels = terminalRows * 2;
+    const dotCols = cellW * 2;
+    const dotRows = cellH * 4;
+    if (this._bands !== dotCols) this.resize(dotCols);
+
     const out: TextChunk[][] = [];
-
-    for (let tr = 0; tr < terminalRows; tr++) {
-      const upperLevel = tr * 2;
-      const lowerLevel = tr * 2 + 1;
-      const upperColor =
-        levelColors[upperLevel] ?? levelColors[levelColors.length - 1] ?? "#fff";
-      const lowerColor =
-        levelColors[lowerLevel] ?? levelColors[levelColors.length - 1] ?? "#fff";
+    for (let cy = 0; cy < cellH; cy++) {
+      const color = rowColors[cy] ?? rowColors[rowColors.length - 1] ?? "#0bff5a";
       const chunks: TextChunk[] = [];
-
-      for (let b = 0; b < bars; b++) {
-        const upper = brickStateAt(this, b, upperLevel, totalLevels);
-        const lower = brickStateAt(this, b, lowerLevel, totalLevels);
-        const upperOn = upper !== "empty";
-        const lowerOn = lower !== "empty";
-
-        if (upperOn && lowerOn) {
-          // Two coloured bricks share a cell. ▀ paints fg on top half and
-          // bg on the bottom — that's both pieces in one character.
-          chunks.push(bg(lowerColor)(fg(upperColor)("▀")));
-        } else if (upperOn) {
-          chunks.push(bg(emptyColor)(fg(upperColor)("▀")));
-        } else if (lowerOn) {
-          chunks.push(bg(emptyColor)(fg(lowerColor)("▄")));
-        } else {
-          chunks.push(fg(emptyColor)(" "));
+      for (let cx = 0; cx < cellW; cx++) {
+        let bits = 0;
+        for (let sr = 0; sr < 4; sr++) {
+          for (let sc = 0; sc < 2; sc++) {
+            const c = cx * 2 + sc;
+            const h = Math.round(this.levels[c]! * dotRows);
+            const pk = Math.round(this.peaks[c]! * dotRows);
+            const dotFromBottom = dotRows - 1 - (cy * 4 + sr);
+            const lit = dotFromBottom < h;
+            const isPeak =
+              !lit &&
+              pk > 0 &&
+              dotFromBottom === pk - 1 &&
+              this.peaks[c]! > this.levels[c]! + 0.04;
+            if (lit || isPeak) bits |= BRAILLE_BITS[sr]![sc]!;
+          }
         }
-
-        if (b < bars - 1) chunks.push(fg(emptyColor)(" "));
+        const ch = String.fromCodePoint(BRAILLE_BASE + bits);
+        chunks.push(fg(bits === 0 ? emptyColor : color)(ch));
       }
       out.push(chunks);
     }
@@ -189,42 +156,6 @@ export class Spectrum {
   }
 }
 
-type BrickState = "lit" | "peak" | "empty";
-
-function brickStateAt(
-  spec: Spectrum,
-  bar: number,
-  brickLevel: number,
-  totalLevels: number,
-): BrickState {
-  // We can read private fields because we're in the same module.
-  const level = (spec as any).levels[bar] as number;
-  const peak = (spec as any).peaks[bar] as number;
-  const barHeight = Math.max(
-    0,
-    Math.min(totalLevels, Math.round(level * totalLevels)),
-  );
-  const peakAt = Math.max(
-    0,
-    Math.min(totalLevels, Math.round(peak * totalLevels)),
-  );
-  const distFromBottom = totalLevels - 1 - brickLevel;
-  if (distFromBottom < barHeight) return "lit";
-  if (peakAt > 0 && distFromBottom === peakAt - 1 && peak > level + 0.05) {
-    return "peak";
-  }
-  return "empty";
-}
-
-function colorForLevel(sub: number): string {
-  if (sub <= 3) return theme.lcd;
-  if (sub <= 6) return theme.amber;
-  return theme.red;
-}
-
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
-}
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v;
 }

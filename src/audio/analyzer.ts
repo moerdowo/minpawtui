@@ -10,6 +10,9 @@
 
 const TWO_PI = Math.PI * 2;
 
+/** Per-band level floor in dB. A band quieter than this reads as empty (0). */
+const FLOOR_DB = -55;
+
 export class Analyzer {
   readonly sampleRate: number;
   readonly fftSize: number;
@@ -146,6 +149,13 @@ export class Analyzer {
     const logMin = Math.log(minHz);
     const logMax = Math.log(maxHz);
 
+    // Normalize FFT magnitude to be amplitude-referenced and size-independent.
+    // A Hann window has coherent gain ~0.5, and an N-point FFT scales a bin by
+    // ~N/2, so dividing by N/4 makes a full-scale sine read ~1.0 (0 dB) in its
+    // bin regardless of fftSize. Without this the raw magnitudes scale with N
+    // and every band saturates to max.
+    const magNorm = 4 / size;
+
     for (let b = 0; b < bandCount; b++) {
       const f0 = Math.exp(logMin + ((logMax - logMin) * b) / bandCount);
       const f1 = Math.exp(logMin + ((logMax - logMin) * (b + 1)) / bandCount);
@@ -153,19 +163,20 @@ export class Analyzer {
       let bin1 = Math.min(half - 1, Math.ceil(f1 / binHz));
       if (bin1 < bin0) bin1 = bin0;
 
-      let sum = 0;
+      let sumPow = 0;
       let count = 0;
       for (let k = bin0; k <= bin1; k++) {
-        const reK = this.re[k]!;
-        const imK = this.im[k]!;
-        sum += reK * reK + imK * imK; // power |X|^2
+        const reK = this.re[k]! * magNorm;
+        const imK = this.im[k]! * magNorm;
+        sumPow += reK * reK + imK * imK; // normalized power
         count++;
       }
-      const power = count > 0 ? sum / count : 0;
+      const rms = count > 0 ? Math.sqrt(sumPow / count) : 0;
 
-      // dB-like scaling: 10*log10(power). Map a useful range into [0,1].
+      // Map dB [FLOOR_DB .. 0] → [0 .. 1]. FLOOR_DB sets how quiet a band has
+      // to get before it reads as empty; typical music lands well inside.
       let v = 0;
-      if (power > 0) v = (10 * Math.log10(power) + 50) / 60;
+      if (rms > 1e-7) v = (20 * Math.log10(rms) - FLOOR_DB) / -FLOOR_DB;
       v = v < 0 ? 0 : v > 1 ? 1 : v;
 
       // Fast attack, slow decay temporal smoothing.

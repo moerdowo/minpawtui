@@ -11,32 +11,30 @@ import type { AppState, PlayerState } from "../types.ts";
 import { formatTime, progressBar, statusGlyph, truncate, volumeBar } from "./util.ts";
 import { Spectrum } from "./spectrum.ts";
 
-const BRICK_BARS = 8;
-// Two terminal rows; each cell holds two stacked half-cell bricks via
-// ▀ / ▄ encoding, so we still get 4 brick levels but each piece is ~1:1.
-const BRICK_TERMINAL_ROWS = 2;
-// Each bar = 1 brick char + 1 char gap; last bar has no trailing gap.
-const VIZ_COL_WIDTH = BRICK_BARS * 2 - 1;
+// Braille dot-matrix visualizer: VIZ_CELL_W × VIZ_CELL_H terminal cells, i.e.
+// a (2·W) × (4·H) grid of fine dots. One bar per dot-column.
+const VIZ_CELL_W = 16;
+const VIZ_CELL_H = 4;
+const VIZ_BARS = VIZ_CELL_W * 2; // 32 thin bars
 // Plus a little left margin so it doesn't kiss the volume readout.
-const VIZ_COL_TOTAL = VIZ_COL_WIDTH + 2;
+const VIZ_COL_TOTAL = VIZ_CELL_W + 2;
 // Below this terminal width we hide the viz entirely so the left
 // content keeps a usable amount of space.
-const MIN_INNER_WIDTH_FOR_VIZ = 55;
+const MIN_INNER_WIDTH_FOR_VIZ = 58;
 
-// 4 brick levels, top → bottom. Each terminal row owns two of these
-// (top half + bottom half) so the gradient survives the half-cell pack.
-const LEVEL_COLORS = [
-  theme.red, // brick 0 — top
-  theme.amber, // brick 1
-  theme.lcd, // brick 2
-  theme.lcdDim, // brick 3 — bottom
+// One color per cell-row, top → bottom (classic Winamp gradient).
+const ROW_COLORS = [
+  theme.red, // top
+  theme.amber,
+  theme.lcd,
+  theme.lcdDim, // bottom
 ];
 
 export class Transport {
   readonly root: BoxRenderable;
-  readonly spectrum = new Spectrum(BRICK_BARS);
-  /** Number of frequency bands the brick visualizer expects. */
-  readonly spectrumBands = BRICK_BARS;
+  readonly spectrum = new Spectrum(VIZ_BARS);
+  /** Number of frequency bands the visualizer expects (one per dot-column). */
+  readonly spectrumBands = VIZ_BARS;
 
   private leftCol: BoxRenderable;
   private vizCol: BoxRenderable;
@@ -107,12 +105,10 @@ export class Transport {
       width: VIZ_COL_TOTAL,
       paddingLeft: 2,
       backgroundColor: theme.lcdBg,
-      // Center the two short brick rows in the panel's content area.
-      justifyContent: "center",
     });
     this.root.add(this.vizCol);
 
-    for (let r = 0; r < BRICK_TERMINAL_ROWS; r++) {
+    for (let r = 0; r < VIZ_CELL_H; r++) {
       const t = new TextRenderable(renderer, {
         id: `transport-viz-row-${r}`,
         content: "",
@@ -145,7 +141,7 @@ export class Transport {
    */
   tickViz(player: PlayerState, dt: number, realBands?: number[] | null): void {
     this.spectrum.tick(dt, player.status === "playing", realBands);
-    if (this.shouldShowViz()) this.renderBricks();
+    if (this.shouldShowViz()) this.renderViz();
   }
 
   update(state: AppState): void {
@@ -234,14 +230,14 @@ export class Transport {
     this.progressText.content = new StyledText(chunks);
   }
 
-  private renderBricks(): void {
-    const rows = this.spectrum.renderBricks(
-      BRICK_BARS,
-      BRICK_TERMINAL_ROWS,
-      LEVEL_COLORS,
+  private renderViz(): void {
+    const rows = this.spectrum.renderBraille(
+      VIZ_CELL_W,
+      VIZ_CELL_H,
+      ROW_COLORS,
       theme.lcdBg,
     );
-    for (let r = 0; r < BRICK_TERMINAL_ROWS; r++) {
+    for (let r = 0; r < VIZ_CELL_H; r++) {
       const row = rows[r];
       if (!row) continue;
       this.vizRows[r]!.content = new StyledText(row);

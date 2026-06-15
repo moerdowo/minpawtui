@@ -1,46 +1,39 @@
 #!/usr/bin/env bun
-// Verify the half-cell brick visualizer renders stacked square bricks
-// when playing and decays to all-spaces when stopped.
+// Verify the Braille dot-matrix visualizer: feed real FFT bands (from white
+// noise + a tone) and render. Confirms fine dots and a non-saturated picture.
 import { Spectrum } from "../src/ui/spectrum.ts";
+import { Analyzer } from "../src/audio/analyzer.ts";
 import { writeFileSync } from "node:fs";
 
-const BARS = 8;
-const TERMINAL_ROWS = 2;
-const LEVEL_COLORS = ["#ff4444", "#ffcf3f", "#0bff5a", "#0a8a3a"];
+const CELL_W = 16;
+const CELL_H = 4;
+const BARS = CELL_W * 2; // one bar per dot-column
+const ROW_COLORS = ["#ff4444", "#ffcf3f", "#0bff5a", "#0a8a3a"];
 const EMPTY = "#021406";
+const SR = 44100;
 
+function render(spec: Spectrum): string[] {
+  const rows = spec.renderBraille(CELL_W, CELL_H, ROW_COLORS, EMPTY);
+  return rows.map((r) => r.map((c: any) => c.text ?? "").join(""));
+}
+
+// Real FFT of a 440Hz tone over band-shaped noise → feed into Spectrum.
+const a = new Analyzer(SR, 2048);
 const spec = new Spectrum(BARS);
+const buf = new Float32Array(2048);
+for (let i = 0; i < buf.length; i++) {
+  buf[i] = Math.sin((2 * Math.PI * 440 * i) / SR) * 0.5 + (Math.random() * 2 - 1) * 0.08;
+}
+a.pushMono(buf);
 
-for (let i = 0; i < 60; i++) spec.tick(1 / 60, true);
-const playing = spec.renderBricks(BARS, TERMINAL_ROWS, LEVEL_COLORS, EMPTY);
+const lines: string[] = [`Braille viz ${CELL_W}×${CELL_H} cells = ${BARS}×${CELL_H * 4} dots`, ""];
+lines.push("playing (real FFT: 440Hz tone + light noise):");
+for (let k = 0; k < 10; k++) spec.tick(1 / 20, true, a.computeBands(BARS));
+for (const r of render(spec)) lines.push(`  |${r}|`);
 
-for (let i = 0; i < 60; i++) spec.tick(1 / 60, false);
-const stopped = spec.renderBricks(BARS, TERMINAL_ROWS, LEVEL_COLORS, EMPTY);
-
-const renderRow = (chunks: any[]) =>
-  chunks.map((c) => c.text ?? "").join("");
-
-const formatColor = (rgba: any): string => {
-  if (!rgba) return "-";
-  const buf = rgba.buffer ?? rgba;
-  return `[${buf[0]},${buf[1]},${buf[2]}]`;
-};
-
-const colorsRow = (chunks: any[]) =>
-  chunks
-    .map((c) => `${c.text}/fg=${formatColor(c.fg)}/bg=${formatColor(c.bg)}`)
-    .join("  ");
-
-const lines: string[] = [
-  `bars=${BARS}  terminal-rows=${TERMINAL_ROWS}  brick-levels=${TERMINAL_ROWS * 2}`,
-  "",
-  "playing:",
-];
-for (const row of playing) lines.push(`  [${renderRow(row)}]`);
-lines.push("", "stopped:");
-for (const row of stopped) lines.push(`  [${renderRow(row)}]`);
-lines.push("", "playing colors (row 0):", `  ${colorsRow(playing[0]!)}`);
-lines.push("", "playing colors (row 1):", `  ${colorsRow(playing[1]!)}`);
+lines.push("", "after stop (decays):");
+for (let k = 0; k < 20; k++) spec.tick(1 / 20, false);
+for (const r of render(spec)) lines.push(`  |${r}|`);
 lines.push("");
 
 const out = lines.join("\n");
